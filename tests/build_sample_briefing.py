@@ -61,6 +61,8 @@ class Briefing:
     overdue: list[str] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
     unread: dict[str, str] = field(default_factory=dict)  # source -> reason
+    notes: list[str] = field(default_factory=list)  # known gaps in data that was read
+    partial: set[str] = field(default_factory=set)  # sources read only in part
     first_meeting: str = ""
 
 
@@ -91,6 +93,9 @@ def compute(data: dict) -> Briefing:
 
     # Tasks (Bitrix24 tasks.task.list response).
     if "tasks" not in b.unread:
+        if "next" in data["tasks"]:  # Bitrix24 returned only the first 50 records
+            b.partial.add("tasks")
+            b.notes.append("задачи: прочитаны первые 50, остальные не видны")
         today_end = now.replace(hour=23, minute=59, second=59, microsecond=0)
         open_tasks = [t for t in data["tasks"]["result"]["tasks"]
                       if str(t.get("status")) not in DONE_STATUSES and t.get("deadline")]
@@ -137,6 +142,8 @@ def compute(data: dict) -> Briefing:
             personal = cfg["me"].lower() in [x.lower() for x in m.get("to", [])]
             if got < start or robot or m.get("last_from_me") or not personal:
                 continue
+            if m.get("last_from_me") is None and "ответы не проверены" not in b.notes:
+                b.notes.append("ответы не проверены")  # sent mail or full thread not visible
             who = clean(m.get("from_name") or m["from"])
             line = f"{who} — {clean(m['subject'])} (ждёт {ago(now - got)})"
             if INJECTION_RE.search(f"{m['subject']} {m.get('snippet', '')}"):
@@ -170,10 +177,12 @@ def render(b: Briefing) -> str:
     label = {"mail": "почта", "calendar": "календарь", "tasks": "задачи"}
     first = f", первая в {b.first_meeting}" if b.first_meeting else ""
     meet_n = "?" if "calendar" in b.unread else str(len(b.meetings))
-    hot_n = f"не меньше {len(b.hot)}" if b.unread else str(len(b.hot))
+    hot_n = f"не меньше {len(b.hot)}" if b.unread or b.partial else str(len(b.hot))
+    over_n = "?" if "tasks" in b.unread else (
+        f"не меньше {len(b.overdue)}" if "tasks" in b.partial else str(len(b.overdue)))
     main = (f"- Встреч сегодня: {meet_n}{first}. Горит: {hot_n}. "
             f"Ответить: {'?' if 'mail' in b.unread else len(b.reply)}. "
-            f"Просрочено: {'?' if 'tasks' in b.unread else len(b.overdue)}.")
+            f"Просрочено: {over_n}.")
     out = [
         f"**Радар · {b.now:%d.%m.%Y}, {WEEKDAYS[b.now.weekday()]}**",
         f"Сводка на {b.now:%H:%M} ({b.tz_label})",
@@ -182,7 +191,7 @@ def render(b: Briefing) -> str:
         "", "**Встречи сегодня**", *_section(b.meetings, "calendar", b.unread, label),
         "", "**Ответить**", *_section(b.reply, "mail", b.unread, label),
         "", "**Просрочено**", *_section(b.overdue, "tasks", b.unread, label),
-        "", "**Источники**", *[f"- {x}" for x in b.sources],
+        "", "**Источники**", *[f"- {x}" for x in b.sources + b.notes],
         "", "Обновить сейчас: напиши «радар».",
     ]
     return "\n".join(out) + "\n"

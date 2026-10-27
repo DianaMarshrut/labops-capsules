@@ -1,4 +1,4 @@
-sha256 714a31fd4489109b2163340358ed55f55d48e18056efd17b1b8672c3ba20136a
+sha256 501f9da73ef0e441a34a915b9949fb27aa7a123069c16cbf903db9fa7b8d81ec
 radar/SKILL.md
 radar/references/briefing-rules.md
 radar/references/schedule.md

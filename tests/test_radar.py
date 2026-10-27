@@ -235,3 +235,22 @@ def test_radar_build_leaves_puls_outputs_untouched(tmp_path: Path) -> None:
     subprocess.run([sys.executable, "scripts/build.py", "radar"], cwd=work, check=True,
                    capture_output=True)
     assert {f: (work / f).read_bytes() for f in puls} == before
+
+
+def test_unknown_last_sender_marks_replies_unchecked() -> None:
+    data = _sample()
+    del data["mail"][1]["last_from_me"]  # the chat could not see the thread
+    out = bsb.build(data)
+    assert "Пётр Ланской" in out
+    assert "- ответы не проверены" in out.split("**Источники**", 1)[1]
+    assert "ответы не проверены" not in bsb.build(_sample())
+
+
+def test_bitrix_next_means_partial_tasks() -> None:
+    data = _sample()
+    data["tasks"]["next"] = 50
+    out = bsb.build(data)
+    assert "Просрочено: не меньше 2" in out and "Горит: не меньше" in out
+    assert "задачи: прочитаны первые 50" in out
+    block = (SKILL / "references/schedule.md").read_text(encoding="utf-8").split("```text", 1)[1]
+    assert "поле next" in block.split("```", 1)[0]
