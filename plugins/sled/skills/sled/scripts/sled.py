@@ -399,8 +399,9 @@ def run_b24(plan: dict, confirm: bool, only: set[int] | None, out=sys.stdout,
         with StateLock(state_path):
             return _run_b24(plan, confirm, only, out, state_path)
     except FileExistsError:
-        print("Уже идёт другая отправка этого списка. Если другого запуска нет — удали файл "
-              f"{state_path.name}.lock рядом со списком и повтори.", file=out)  # type: ignore
+        print(redact("Уже идёт другая отправка этого списка. Если другого запуска нет — удали "
+                     f"файл {state_path.name}.lock рядом со списком и повтори.",  # type: ignore
+                     _secret_or_none()), file=out)
         return 7
 
 
@@ -489,6 +490,13 @@ def _run_b24(plan: dict, confirm: bool, only: set[int] | None, out,
                     "Проверь задачу в Битрикс24 перед повтором.")
                 code = 4
         _save_state(state_path, state)
+        if state[key]["status"] == "unknown":  # the task may exist: stop, send nothing more
+            rest = [x["n"] for x in tasks[tasks.index(t) + 1:]
+                    if state.get(str(x["n"]), {}).get("status") != "created"]
+            if rest:
+                say(f"Остановил отправку: задачи {rest} не отправлены. Сначала проверь в "
+                    "Битрикс24 задачу с неизвестным результатом.")
+            return 4
     return code
 
 

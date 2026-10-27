@@ -535,3 +535,31 @@ def test_unexpected_task_id_is_unknown(monkeypatch, tmp_path: Path, bad_id) -> N
     saved = state.read_text(encoding="utf-8")
     assert json.loads(saved)["1"] == {"status": "unknown"}
     assert FAKE_KEY not in saved and FAKE_KEY not in out.getvalue()
+
+
+def test_unknown_result_stops_remaining_tasks(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv(sled.WEBHOOK_ENV, FAKE_WEBHOOK)
+    state = tmp_path / "plan.sent.json"
+    calls = []
+
+    def first_times_out(req, timeout=0):
+        calls.append(req)
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(sled.urllib.request, "urlopen", first_times_out)
+    out = io.StringIO()
+    assert sled.run_b24(_plan(), True, {1, 2}, out, state) == 4
+    assert len(calls) == 1  # task 2 is never sent after an unknown result
+    saved = json.loads(state.read_text(encoding="utf-8"))
+    assert saved["1"] == {"status": "unknown"} and "2" not in saved
+    assert "не отправлены" in out.getvalue()
+
+
+def test_lock_message_is_redacted(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv(sled.WEBHOOK_ENV, FAKE_WEBHOOK)
+    monkeypatch.setattr(sled.urllib.request, "urlopen", _no_network)
+    state = tmp_path / f"plan-{FAKE_KEY}.sent.json"
+    with sled.StateLock(state):
+        out = io.StringIO()
+        assert sled.run_b24(_plan(), True, {1}, out, state) == 7
+    assert FAKE_KEY not in out.getvalue() and "Уже идёт другая отправка" in out.getvalue()
