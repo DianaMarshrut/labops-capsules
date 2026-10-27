@@ -157,3 +157,23 @@ def test_sample_metrics(tmp_path: Path) -> None:
     assert 3 <= len(dash.kpis) <= 7
     out = bsd.fill(bsd.TEMPLATE, dash, tmp_path / "p.html")
     assert "Выручка" in out.read_text(encoding="utf-8")
+
+
+def test_bitrix_link_path_in_all_chats() -> None:
+    """Bitrix24 webhook link is the main path in every chat; old 'Claude Code only' text is gone."""
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    src = (SKILL / "references/sources.md").read_text(encoding="utf-8")
+    chat = (REPO / "chat-instruction.md").read_text(encoding="utf-8")
+    for text in (skill, src, chat):
+        assert "только Claude Code" not in text
+        assert "не подключаем Битрикс24 напрямую" not in text
+    assert "Ссылка вебхука — основной путь, в любом чате" in src
+    assert "генераторе запросов" in src and "`next`" in src and "50 записей" in src
+    assert "URLs you've shared" in src
+    assert "только вручную" in skill  # step 7: links and files refresh manually
+
+
+def test_versions_match() -> None:
+    mp = json.loads((REPO / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))
+    pl = json.loads((REPO / "plugins/puls/.claude-plugin/plugin.json").read_text(encoding="utf-8"))
+    assert pl["version"] == mp["plugins"][0]["version"] == "0.2.0"
