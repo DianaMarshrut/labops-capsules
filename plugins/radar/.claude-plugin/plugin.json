@@ -1,0 +1,11 @@
+{
+  "name": "radar",
+  "version": "0.1.0",
+  "description": "Радар — утренняя сводка руководителю: важные письма, встречи на сегодня, горящие и просроченные задачи. Только чтение. По расписанию внутри ИИ или по фразе «радар».",
+  "author": {
+    "name": "labopsai"
+  },
+  "homepage": "https://labopsai.pro",
+  "license": "MIT",
+  "keywords": ["briefing", "morning", "gmail", "calendar", "tasks", "bitrix24", "schedule"]
+}

@@ -331,7 +331,8 @@ def test_only_read_only_bitrix_methods() -> None:
                 continue
             found.add(name)
     assert found, "expected crm.deal.list to be documented"
-    bad = {n for n in found if n.split(".")[-1] not in {"list", "get", "fields"}}
+    # calendar.event.get.nearest (radar section of the shared README) is a read method too
+    bad = {n for n in found if n.split(".")[-1] not in {"list", "get", "fields", "nearest"}}
     assert not bad, bad
 
 
@@ -383,8 +384,10 @@ def test_main_principle_in_skill_and_readme() -> None:
     for who in ("| Claude |", "| ChatGPT |", "| DeepSeek |"):
         assert who in readme
     # every "каждый раз" cell starts with the single phrase
-    rows = [ln for ln in readme.splitlines() if ln.startswith(("| Claude |", "| ChatGPT |",
-                                                                "| DeepSeek |"))]
+    puls_part = readme.split("# Пульс", 1)[1].split("\n# ", 1)[0]  # README is shared
+    rows = [ln for ln in puls_part.splitlines() if ln.startswith(("| Claude |", "| ChatGPT |",
+                                                                   "| DeepSeek |"))]
+    assert len(rows) == 3
     assert all(r.rstrip("|").split("|")[-1].strip().startswith("Пишешь «обнови пульс»")
                for r in rows)
 

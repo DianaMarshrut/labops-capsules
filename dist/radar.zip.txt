@@ -1,0 +1,7 @@
+sha256 a7174d3261fdc0d2548e22c4a2d64aa3de7323fcea2ee8f170f36b85bc3d0763
+radar/SKILL.md
+radar/references/briefing-rules.md
+radar/references/schedule.md
+radar/references/sources.md
+radar/templates/briefing.md
+radar/templates/settings.md
