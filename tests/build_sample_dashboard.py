@@ -88,6 +88,25 @@ def read_deals(path: Path) -> list[Deal]:
     return out
 
 
+def read_all_pages(fetch: Callable[[int], dict]) -> list[dict]:
+    """Read every page of a Bitrix24 list answer, as SKILL.md step 4 tells the AI to do.
+
+    Args:
+        fetch: Opens the saved link with the given `start` and returns the JSON answer.
+
+    Returns:
+        All records. Stops only when the answer has no `next`, never by dates.
+    """
+    rows: list[dict] = []
+    start = 0
+    while True:
+        answer = fetch(start)
+        rows += answer["result"]
+        if "next" not in answer:
+            return rows
+        start = answer["next"]
+
+
 def money(v: float) -> str:
     """Format rubles with thin thousands separators, no kopecks."""
     return f"{round(v):,}".replace(",", " ") + " ₽"

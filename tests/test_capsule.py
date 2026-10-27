@@ -7,7 +7,7 @@ import json
 import re
 import sys
 import zipfile
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -154,6 +154,36 @@ def test_no_data_vs_zero() -> None:
     old = recent + [_deal("Успешно", 9, date(2026, 8, 1), date(2026, 8, 2))]
     k = {x.label: x for x in bsd.compute(old, today, date(2026, 10, 15)).kpis}
     assert k["Выручка (успешные сделки)"].value == bsd.NO_DATA
+
+
+def test_bitrix_pages_read_to_the_end() -> None:
+    """Old deal closed today and an old open deal sit on the last page: both must count."""
+    today = date(2026, 10, 27)
+    recent = [{"stage": "Новая", "amount": 0, "created": today - timedelta(days=i % 20),
+               "closed": None, "changed": today} for i in range(100)]
+    old_won = {"stage": "Успешно", "amount": 900_000, "created": date(2025, 10, 1),
+               "closed": today, "changed": today}
+    old_open = {"stage": "Переговоры", "amount": 0, "created": date(2025, 9, 1),
+                "closed": None, "changed": date(2025, 12, 1)}
+    records = recent + [old_won, old_open]  # newest first, like order DATE_CREATE DESC
+
+    def fetch(start: int) -> dict:
+        page = {"result": records[start:start + 50]}
+        if start + 50 < len(records):
+            page["next"] = start + 50
+        return page
+
+    rows = bsd.read_all_pages(fetch)
+    assert len(rows) == len(records) and fetch(0).get("next") == 50
+    deals = [_deal(r["stage"], r["amount"], r["created"], r["closed"], r["changed"]) for r in rows]
+    k = {x.label: x for x in bsd.compute(deals, today, date(2025, 1, 1)).kpis}
+    assert k["Выручка (успешные сделки)"].value == bsd.money(900_000)
+    assert k["Без движения > 14 дней"].value == "1"
+    first_page = deals[:50]  # what a chat that cannot change the link would see
+    k1 = {x.label: x for x in bsd.compute(first_page, today, date(2025, 1, 1)).kpis}
+    assert k1["Выручка (успешные сделки)"].value != k["Выручка (успешные сделки)"].value
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    assert "пока в ответе есть\n    `next`" in skill and "до начала периода" not in skill
 
 
 def test_fill_escapes_script_close(tmp_path: Path) -> None:
