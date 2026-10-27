@@ -5,6 +5,7 @@ Produces:
   chat-instruction.md  -- SKILL.md + references + template merged into one text for
                           ChatGPT / DeepSeek (paste as first message or attach as file).
   dist/radar.zip, chat-instruction-radar.md -- the same for the radar capsule.
+  dist/sled.zip, chat-instruction-sled.md -- the same for the sled capsule.
 
 Usage: python3 scripts/build.py            # all capsules
        python3 scripts/build.py radar      # only the named capsules
@@ -47,7 +48,8 @@ def build_zip(skill_dir: Path, out: Path) -> Path:
     root = skill_dir.name
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         for path in sorted(skill_dir.rglob("*")):
-            if path.is_file() and not path.name.startswith("."):
+            if (path.is_file() and not path.name.startswith(".")
+                    and "__pycache__" not in path.parts):
                 # Fixed date and mode: same content gives the same archive and checksum.
                 info = zipfile.ZipInfo(f"{root}/{path.relative_to(skill_dir).as_posix()}",
                                        date_time=ZIP_DATE)
@@ -179,12 +181,81 @@ def build_radar_chat_instruction(out: Path) -> Path:
     return build_chat_text(RADAR_DIR, out, RADAR_INTRO, RADAR_APPENDICES)
 
 
+# ---------------------------------------------------------------- sled capsule
+
+SLED_DIR = REPO / "plugins/sled/skills/sled"
+SLED_REFERENCES: list[tuple[str, str]] = [
+    ("references/setup.md", "Приложение 1. Настройка один раз"),
+    ("references/sources.md", "Приложение 2. Откуда берём встречу"),
+    ("references/tasks.md", "Приложение 3. Задачи из протокола"),
+    ("references/reminders.md", "Приложение 4. Напоминания"),
+]
+SLED_TEMPLATES: list[tuple[str, str, str]] = [
+    ("templates/protocol.md", "Приложение 5. Шаблон протокола", "markdown"),
+    ("templates/reminder.ics", "Приложение 6. Шаблон файла .ics", "text"),
+]
+SLED_SCRIPT_NOTE = "`sled.py` из плагина «След»"
+
+
+def _sled_links(text: str) -> str:
+    """Point file references of the sled skill at appendices of the merged text."""
+    for rel, title in SLED_REFERENCES + [(r, t) for r, t, _ in SLED_TEMPLATES]:
+        text = text.replace(f"`{rel}`", f"«{title.split('. ', 1)[0]}» ниже")
+    text = text.replace("`scripts/sled.py`", SLED_SCRIPT_NOTE)
+    text = text.replace("scripts/sled.py", "sled.py")
+    for old, new in (("шаблон «Приложение", "шаблон из «Приложения"),
+                     ("по шаблону «Приложение", "по шаблону из «Приложения"),
+                     ("Заполни «Приложение", "Заполни шаблон из «Приложения"),
+                     ("по «Приложение ", "по «Приложению "),
+                     ("из «Приложение ", "из «Приложения ")):
+        text = text.replace(old, new)
+    return text
+
+
+def build_sled_chat_instruction(skill_dir: Path, out: Path) -> Path:
+    """Merge the sled SKILL.md, references and templates into one chat instruction."""
+    body = _sled_links(strip_frontmatter(
+        (skill_dir / "SKILL.md").read_text(encoding="utf-8")).strip())
+    parts = [
+        "# Инструкция для чата: капсула «След» от labopsai",
+        "",
+        "Вставь весь этот текст в инструкции проекта (Claude, ChatGPT) или первым сообщением "
+        "в новый чат (DeepSeek и другие), либо приложи файлом и напиши: «Работай по этой "
+        "инструкции». Затем — «разбери встречу» и текст встречи (или встреча из Granola, "
+        "если она подключена).",
+        "",
+        "Ты работаешь в обычном чате. Встречу берёшь из встроенного коннектора (если он есть "
+        "в этом чате) или из текста и файла, которые прислал пользователь. Других доступов "
+        "к системам пользователя у тебя нет; ничего не записываешь без его «да». Скрипт "
+        "`sled.py` есть только в плагине для Claude Code и в навыке Claude — в обычном чате "
+        "делай то же по шаблонам и правилам из приложений.",
+        "",
+        "---",
+        "",
+        body,
+    ]
+    for rel, title in SLED_REFERENCES:
+        ref = (skill_dir / rel).read_text(encoding="utf-8").strip()
+        ref = _sled_links(re.sub(r"\A# .*\n", "", ref).strip())
+        parts += ["", "---", "", f"# {title}", "", ref]
+    for rel, title, lang in SLED_TEMPLATES:
+        tpl = (skill_dir / rel).read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+        parts += ["", "---", "", f"# {title}", "", f"````{lang}", tpl, "````"]
+    parts.append("")
+    out.write_text("\n".join(parts), encoding="utf-8")
+    logger.info("Saved %s (%d chars)", out, out.stat().st_size)
+    return out
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    wanted = set(sys.argv[1:]) or {"puls", "radar"}
+    wanted = set(sys.argv[1:]) or {"puls", "radar", "sled"}
     if "puls" in wanted:
         build_zip(SKILL_DIR, DIST / "puls.zip")
         build_chat_instruction(SKILL_DIR, REPO / "chat-instruction.md")
     if "radar" in wanted:
         build_zip(RADAR_DIR, DIST / "radar.zip")
         build_radar_chat_instruction(REPO / "chat-instruction-radar.md")
+    if "sled" in wanted:
+        build_zip(SLED_DIR, DIST / "sled.zip")
+        build_sled_chat_instruction(SLED_DIR, REPO / "chat-instruction-sled.md")

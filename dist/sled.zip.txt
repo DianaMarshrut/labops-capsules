@@ -1,0 +1,9 @@
+sha256 dc6b5461482facbe2cab003ded1582c799305bd6727cfe32c5678cf8a0d9cf0d
+sled/SKILL.md
+sled/references/reminders.md
+sled/references/setup.md
+sled/references/sources.md
+sled/references/tasks.md
+sled/scripts/sled.py
+sled/templates/protocol.md
+sled/templates/reminder.ics
