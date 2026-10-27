@@ -56,7 +56,9 @@ Google при входе пишет, что Claude сможет отправля
   (Entra ID — корпоративный вход). Личный Outlook.com — не подтверждено.
 - **ChatGPT:** приложения «Outlook Email» и «Outlook Calendar». Часть действий включает
   администратор Microsoft. Работают ли на Free — не подтверждено.
-- **ChatGPT, iCloud:** плагины «iCloud Mail» и «iCloud Calendar» раскатываются на все тарифы.
+- **ChatGPT, iCloud:** плагины «iCloud Mail» и «iCloud Calendar» — по справке OpenAI
+  о подключённых приложениях они раскатываются на все тарифы (https://help.openai.com/en/articles/11487775);
+  есть ли они уже в твоём аккаунте — проверь в «Settings» → «Plugins».
   Для подключения нужен пароль приложения Apple (app-specific password — отдельный пароль,
   который создаётся на account.apple.com, а не твой основной пароль).
 

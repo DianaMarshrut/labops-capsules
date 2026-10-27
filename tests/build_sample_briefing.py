@@ -68,11 +68,9 @@ def _dt(s: str, tz) -> datetime:
     return datetime.fromisoformat(s).astimezone(tz)
 
 
-def mail_window_start(now: datetime) -> datetime:
-    """Last 24 hours; on Monday since Friday 00:00 local time."""
-    if now.weekday() == 0:
-        return (now - timedelta(days=3)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return now - timedelta(hours=24)
+def mail_window_start(now: datetime, days: int) -> datetime:
+    """Mail threads are read for the last N days, so yesterday's unanswered mail stays."""
+    return now - timedelta(days=days)
 
 
 def is_vip(sender: str, vip: list[str]) -> bool:
@@ -106,25 +104,31 @@ def compute(data: dict) -> Briefing:
     # Calendar: today, not declined.
     if "calendar" not in b.unread:
         day = now.date()
-        events = [e for e in data["calendar"] if e.get("my_status") != "declined"
-                  and _dt(e["start"], tz).date() <= day <= (_dt(e["end"], tz) - timedelta(seconds=1)).date()]
+        def today(e: dict) -> bool:
+            last = _dt(e["end"], tz) - timedelta(seconds=1)  # end is exclusive
+            return _dt(e["start"], tz).date() <= day <= last.date()
+
+        events = [e for e in data["calendar"] if e.get("my_status") != "declined" and today(e)]
         all_day = [e for e in events if e.get("all_day")]
-        timed = sorted((e for e in events if not e.get("all_day")), key=lambda e: _dt(e["start"], tz))
+        timed = sorted((e for e in events if not e.get("all_day")),
+                       key=lambda e: _dt(e["start"], tz))
         for e in all_day:
             b.meetings.append(f"весь день — {clean(e['title'])}")
         for e in timed:
             note = " (нет ответа на приглашение)" if e.get("my_status") == "needs_action" else ""
             b.meetings.append(f"{_dt(e['start'], tz):%H:%M}–{_dt(e['end'], tz):%H:%M} "
                               f"{clean(e['title'])}{note}")
-        for a, c in zip(timed, timed[1:]):
-            if _dt(c["start"], tz) < _dt(a["end"], tz):
-                b.hot.append(f"Пересекаются: {clean(a['title'])} и {clean(c['title'])}")
+        for i, a in enumerate(timed):  # every pair: a long meeting can cover several
+            for c in timed[i + 1:]:
+                a0, a1 = _dt(a["start"], tz), _dt(a["end"], tz)
+                if _dt(c["start"], tz) < a1 and a0 < _dt(c["end"], tz):
+                    b.hot.append(f"Пересекаются: {clean(a['title'])} и {clean(c['title'])}")
         if timed:
             b.first_meeting = f"{_dt(timed[0]['start'], tz):%H:%M}"
 
     # Mail.
     if "mail" not in b.unread:
-        start = mail_window_start(now)
+        start = mail_window_start(now, cfg.get("mail_window_days", 7))
         wait = timedelta(hours=cfg["reply_after_hours"])
         for m in sorted(data["mail"], key=lambda m: m["received"]):
             got = _dt(m["received"], tz)
@@ -166,7 +170,8 @@ def render(b: Briefing) -> str:
     label = {"mail": "почта", "calendar": "календарь", "tasks": "задачи"}
     first = f", первая в {b.first_meeting}" if b.first_meeting else ""
     meet_n = "?" if "calendar" in b.unread else str(len(b.meetings))
-    main = (f"- Встреч сегодня: {meet_n}{first}. Горит: {len(b.hot)}. "
+    hot_n = f"не меньше {len(b.hot)}" if b.unread else str(len(b.hot))
+    main = (f"- Встреч сегодня: {meet_n}{first}. Горит: {hot_n}. "
             f"Ответить: {'?' if 'mail' in b.unread else len(b.reply)}. "
             f"Просрочено: {'?' if 'tasks' in b.unread else len(b.overdue)}.")
     out = [

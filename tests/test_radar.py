@@ -95,13 +95,6 @@ def test_chat_instruction_is_current_and_self_contained(tmp_path: Path) -> None:
     assert "Приложение 5" in fresh and "Настройки радара" in fresh
 
 
-def test_puls_chat_instruction_untouched(tmp_path: Path) -> None:
-    import build
-
-    fresh = build.build_chat_instruction(build.SKILL_DIR, tmp_path / "p.md").read_text("utf-8")
-    assert fresh == (REPO / "chat-instruction.md").read_text(encoding="utf-8")
-
-
 def test_only_read_methods_of_bitrix() -> None:
     """Every Bitrix24 REST method named anywhere in the capsule is a read method."""
     method_re = re.compile(r"\b(?:tasks|task|calendar|crm|user|im|disk)\.[a-z]+(?:\.[a-z]+)*\b")
@@ -161,6 +154,7 @@ def test_sample_briefing_content() -> None:
         assert absent not in reply
     assert "Олег Смирнов" in reply and "Пётр Ланской" in reply
     assert "попытку управлять ИИ" in b.reply[-1]
+    assert "Слишком старое" not in reply
     assert not any("Служба поддержки" in h for h in b.hot)  # suspicious mail is never "hot"
 
 
@@ -197,8 +191,47 @@ def test_cap_five_items() -> None:
     assert bsb._cap([str(i) for i in range(8)])[-1] == "и ещё 3"
 
 
-def test_monday_window_starts_friday() -> None:
-    from datetime import datetime
+def test_old_unanswered_mail_stays_and_window_applies() -> None:
+    reply = "\n".join(bsb.compute(_sample()).reply)
+    assert "Вера Old" in reply and "ждёт 4 дн." in reply  # came 5 days ago, still no answer
+    assert "Слишком старое" not in reply  # outside the 7-day window
+    assert reply.index("Вера Old") < reply.index("Олег Смирнов")  # oldest first
 
-    now = datetime.fromisoformat("2026-11-02T08:00:00+05:00")  # Monday
-    assert bsb.mail_window_start(now).isoformat() == "2026-10-30T00:00:00+05:00"
+
+def test_overlaps_checked_for_every_pair() -> None:
+    data = _sample()
+    data["calendar"] = [
+        {"title": "Длинная", "start": "2026-10-28T09:00:00+05:00",
+         "end": "2026-10-28T12:00:00+05:00", "all_day": False, "my_status": "accepted"},
+        {"title": "Короткая", "start": "2026-10-28T09:30:00+05:00",
+         "end": "2026-10-28T10:00:00+05:00", "all_day": False, "my_status": "accepted"},
+        {"title": "Поздняя", "start": "2026-10-28T11:00:00+05:00",
+         "end": "2026-10-28T11:30:00+05:00", "all_day": False, "my_status": "accepted"},
+    ]
+    hot = bsb.compute(data).hot
+    assert "Пересекаются: Длинная и Короткая" in hot
+    assert "Пересекаются: Длинная и Поздняя" in hot
+    assert not any("Короткая и Поздняя" in h for h in hot)
+
+
+def test_hot_count_is_lower_bound_when_source_unread() -> None:
+    data = _sample()
+    for s in data["sources"].values():
+        s.update(ok=False, reason="нет доступа")
+    out = bsb.build(data)
+    assert "Горит: не меньше 0" in out and "Горит: 0" not in out
+    assert "Встреч сегодня: ?" in out and "Ответить: ?" in out
+
+
+def test_radar_build_leaves_puls_outputs_untouched(tmp_path: Path) -> None:
+    """`build.py radar` writes only radar files; puls zip, checksum and chat text stay as is."""
+    import shutil
+    import subprocess
+
+    work = tmp_path / "repo"
+    shutil.copytree(REPO, work, ignore=shutil.ignore_patterns(".git", ".venv", "__pycache__"))
+    puls = ["dist/puls.zip", "dist/puls.zip.txt", "chat-instruction.md"]
+    before = {f: (work / f).read_bytes() for f in puls}
+    subprocess.run([sys.executable, "scripts/build.py", "radar"], cwd=work, check=True,
+                   capture_output=True)
+    assert {f: (work / f).read_bytes() for f in puls} == before
