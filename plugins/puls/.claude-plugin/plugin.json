@@ -1,0 +1,11 @@
+{
+  "name": "puls",
+  "version": "0.1.0",
+  "description": "Пульс — дашборд руководителя: главные цифры компании на одной HTML-странице из CRM, учёта или Excel. Обновление по фразе «обнови пульс».",
+  "author": {
+    "name": "labopsai"
+  },
+  "homepage": "https://labopsai.pro",
+  "license": "MIT",
+  "keywords": ["dashboard", "kpi", "bitrix24", "amocrm", "moysklad", "excel", "1c"]
+}

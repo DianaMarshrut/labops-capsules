@@ -1,0 +1,28 @@
+{
+  "name": "labopsai-capsules",
+  "owner": {
+    "name": "labopsai"
+  },
+  "metadata": {
+    "description": "Бесплатные капсулы labopsai: готовые навыки ИИ для руководителей малого и среднего бизнеса",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "puls",
+      "source": "./plugins/puls",
+      "description": "Пульс — дашборд руководителя: главные цифры компании на одной HTML-странице из CRM, учёта или Excel",
+      "version": "0.1.0",
+      "category": "productivity",
+      "keywords": [
+        "dashboard",
+        "kpi",
+        "bitrix24",
+        "amocrm",
+        "moysklad",
+        "excel",
+        "1c"
+      ]
+    }
+  ]
+}
