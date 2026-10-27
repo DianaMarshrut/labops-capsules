@@ -27,6 +27,7 @@ REFERENCES: list[tuple[str, str]] = [
     ("references/publish.md", "Приложение 3. Постоянное место, ссылка и автообновление"),
 ]
 TEMPLATE = "templates/dashboard.html"
+ZIP_DATE = (2026, 1, 1, 0, 0, 0)
 
 
 def build_zip(skill_dir: Path, out: Path) -> Path:
@@ -44,7 +45,13 @@ def build_zip(skill_dir: Path, out: Path) -> Path:
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         for path in sorted(skill_dir.rglob("*")):
             if path.is_file() and not path.name.startswith("."):
-                zf.write(path, f"{root}/{path.relative_to(skill_dir).as_posix()}")
+                # Fixed date and mode: same content gives the same archive and checksum.
+                info = zipfile.ZipInfo(f"{root}/{path.relative_to(skill_dir).as_posix()}",
+                                       date_time=ZIP_DATE)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o644 << 16
+                info.create_system = 3
+                zf.writestr(info, path.read_bytes())
     with zipfile.ZipFile(out) as zf:
         names = zf.namelist()
     digest = hashlib.sha256(out.read_bytes()).hexdigest()

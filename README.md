@@ -119,9 +119,14 @@ https://help.openai.com/en/articles/10169521-projects-in-chatgpt .
 | ChatGPT | Создаёшь проект «Пульс», кладёшь `chat-instruction.md` в файлы, ссылку и «Настройки пульса» — в инструкции проекта. На Plus и Pro — публикуешь сайт (Sites). По желанию — задача по расписанию (Tasks) | Пишешь «обнови пульс» в том же чате проекта. С задачей по расписанию — ничего (сначала проверь её на одном запуске) |
 | DeepSeek | Заводишь чат «Пульс», вставляешь `chat-instruction.md` и ссылку, сохраняешь дашборд в файл `pulse.html` | Пишешь «обнови пульс» в том же чате и заменяешь код в `pulse.html` |
 
-Если источник — Excel-выгрузка (amoCRM, 1С, МойСклад вне Claude Code), к «каждому разу»
-добавляется ручная работа: выгрузить свежий файл и загрузить его в чат. Расписание такой
-источник не обновит.
+Где «каждый раз» больше одной фразы — честно:
+- Источник — Excel-выгрузка (amoCRM, 1С, МойСклад вне Claude Code): каждый раз выгрузить свежий
+  файл и загрузить его в чат. Расписание такой источник не обновит.
+- Битрикс24 по ссылке отдаёт до 50 записей за раз. Claude Code сам дочитывает следующие части.
+  Браузерный чат может видеть только последние 50 записей: если за период их больше — нужен
+  Claude Code или Excel-выгрузка.
+- Google Таблица по ссылке «читатель»: что чат её откроет, официально не описано — проверь
+  на первой сборке. Коннектор Google Drive в Claude и ChatGPT надёжнее.
 
 Что подтверждено справкой, а что нет — в `plugins/puls/skills/puls/references/publish.md`
 (раздел «Источники»).
@@ -154,6 +159,7 @@ https://help.openai.com/en/articles/10169521-projects-in-chatgpt .
 ```
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
+python3 -m playwright install chromium
 python3 scripts/build.py
 python3 -m pytest tests -q
 python3 tests/make_sample_xlsx.py && python3 tests/build_sample_dashboard.py

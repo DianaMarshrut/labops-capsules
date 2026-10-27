@@ -58,6 +58,23 @@ def test_shipped_zip_matches_skill_and_checksum() -> None:
                 assert zf.read(f"puls/{f.relative_to(SKILL).as_posix()}") == f.read_bytes()
 
 
+def test_build_zip_is_reproducible(tmp_path: Path) -> None:
+    """Same content gives the same archive even when file times differ."""
+    import os
+    import shutil
+
+    import build
+
+    copy = tmp_path / "src" / "puls"
+    shutil.copytree(SKILL, copy)
+    first = build.build_zip(copy, tmp_path / "a.zip").read_bytes()
+    for f in copy.rglob("*"):
+        os.utime(f, (1_000_000_000, 1_000_000_000))
+    second = build.build_zip(copy, tmp_path / "b.zip").read_bytes()
+    assert first == second
+    assert first == (REPO / "dist/puls.zip").read_bytes()
+
+
 def test_build_zip_in_temp_dir(tmp_path: Path) -> None:
     import build  # scripts/build.py
 
@@ -214,7 +231,8 @@ def test_template_masks_webhook_key() -> None:
 
 def test_template_in_browser_with_hostile_values(tmp_path: Path) -> None:
     """Render hostile strings in a real browser: no script runs, no request leaves, key masked."""
-    pw = __import__("pytest").importorskip("playwright.sync_api")
+    from playwright import sync_api as pw  # required: see README, "Для разработчика"
+
     import build_edge_dashboard as bed
 
     dash = bed.edge_dashboard()
@@ -225,12 +243,21 @@ def test_template_in_browser_with_hostile_values(tmp_path: Path) -> None:
     dash.kpis[0].label = "</script><script>window.__pwned=2</script>"
     dash.tables[0]["rows"] = [[evil, "1"]]
     dash.attention.append("<svg onload=window.__pwned=3>")
+    with __import__("pytest").raises(ValueError):  # the key must never reach the file
+        bsd.fill(bsd.TEMPLATE, dash, tmp_path / "evil.html")
+    dash.meta["source"] = "Битрикс24, сделки"
     out = bsd.fill(bsd.TEMPLATE, dash, tmp_path / "evil.html")
+    assert "s3cr3tKEY123" not in out.read_text(encoding="utf-8")
+    # Last guard on screen: a key that slipped into the source is masked when shown.
+    leak = out.with_name("leak.html")
+    leak.write_text(out.read_text(encoding="utf-8").replace(
+        "Битрикс24, сделки", hook.replace("/", "\\/")), encoding="utf-8")
+    broken = out.with_name("broken.html")
+    src = out.read_text(encoding="utf-8")
+    a = src.index('<script id="puls-data" type="application/json">') + 48
+    broken.write_text(src[:a] + hook + " {" + src[a:], encoding="utf-8")
     with pw.sync_playwright() as p:
-        try:
-            browser = p.chromium.launch(args=["--no-sandbox"])
-        except Exception as exc:  # browser binaries are optional for this suite
-            __import__("pytest").skip(f"no chromium: {exc}")
+        browser = p.chromium.launch(args=["--no-sandbox"])
         page = browser.new_page()
         requests: list[str] = []
         dialogs: list[str] = []
@@ -243,9 +270,18 @@ def test_template_in_browser_with_hostile_values(tmp_path: Path) -> None:
         assert dialogs == []
         assert page.locator("img").count() == 0
         body = page.inner_text("body")
-        assert "s3cr3tKEY123" not in body and "/rest/1/***" in body
-        assert "s3cr3tKEY123" not in page.title()
         assert evil in body  # shown as plain text
+        for f in (leak, broken):
+            page.goto(f.as_uri())
+            page.wait_for_timeout(200)
+            body = page.inner_text("body")
+            assert "s3cr3tKEY123" not in body, f.name
+        assert "Ошибка в данных дашборда" in body  # broken.html shows an error, not the key
+        page.goto(leak.as_uri())
+        page.wait_for_timeout(200)
+        assert "/rest/1/***" in page.inner_text("body")
+        assert "s3cr3tKEY123" not in page.title()
+        assert [u for u in requests if not u.startswith("file:")] == []
         browser.close()
 
 

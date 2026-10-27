@@ -10,7 +10,8 @@
   Pulse dashboard template (labopsai capsule "puls").
   Self-contained: no external fonts, scripts, images or network requests.
   The Content-Security-Policy meta blocks any network load even if data is malformed.
-  Any URL with a Bitrix24 webhook key (/rest/<id>/<key>/) is masked before display.
+  NEVER put links with keys (Bitrix24 webhook /rest/<id>/<key>/) into the JSON: the page source
+  is readable by anyone who gets the file. On screen such a key is masked as a last guard.
 
   HOW TO FILL: edit ONLY the JSON inside <script id="puls-data">. Do not touch CSS/JS.
   ESCAPING: inside JSON strings write every "<" as \u003c, so text like </script> cannot
@@ -252,21 +253,22 @@
 <script>
 (function () {
   "use strict";
+  // Last guard only: masks the key of ".../rest/<id>/<key>/..." links on screen.
+  // The key would still be in this file's source, so never put it into the JSON at all.
+  function safe(v) {
+    return String(v).replace(/(\/rest\/\d+\/)[^\/\s?#]+/gi, "$1***");
+  }
   var data;
   var app = document.getElementById("app");
   try {
     data = JSON.parse(document.getElementById("puls-data").textContent);
   } catch (e) {
     var err = document.createElement("p");
-    err.textContent = "Ошибка в данных дашборда: " + String(e.message);
+    err.textContent = safe("Ошибка в данных дашборда: " + String(e.message));
     app.appendChild(err);
     return;
   }
 
-  // Never show a webhook key: mask the secret part of ".../rest/<id>/<key>/..." links.
-  function safe(v) {
-    return String(v).replace(/(\/rest\/\d+\/)[^\/\s?#]+/gi, "$1***");
-  }
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
