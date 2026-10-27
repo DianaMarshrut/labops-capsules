@@ -23,6 +23,22 @@
         "excel",
         "1c"
       ]
+    },
+    {
+      "name": "radar",
+      "source": "./plugins/radar",
+      "description": "Радар — утренняя сводка руководителю: важные письма, встречи на сегодня, горящие и просроченные задачи. Только чтение",
+      "version": "0.1.0",
+      "category": "productivity",
+      "keywords": [
+        "briefing",
+        "morning",
+        "gmail",
+        "calendar",
+        "tasks",
+        "bitrix24",
+        "schedule"
+      ]
     }
   ]
 }
