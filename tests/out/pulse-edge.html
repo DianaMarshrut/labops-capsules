@@ -4,10 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <title>Пульс</title>
 <!--
   Pulse dashboard template (labopsai capsule "puls").
   Self-contained: no external fonts, scripts, images or network requests.
+  The Content-Security-Policy meta blocks any network load even if data is malformed.
+  NEVER put links with keys (Bitrix24 webhook /rest/<id>/<key>/) into the JSON: the page source
+  is readable by anyone who gets the file. On screen such a key is masked as a last guard.
 
   HOW TO FILL: edit ONLY the JSON inside <script id="puls-data">. Do not touch CSS/JS.
   ESCAPING: inside JSON strings write every "<" as \u003c, so text like </script> cannot
@@ -299,13 +303,18 @@
 <script>
 (function () {
   "use strict";
+  // Last guard only: masks the key of ".../rest/<id>/<key>/..." links on screen.
+  // The key would still be in this file's source, so never put it into the JSON at all.
+  function safe(v) {
+    return String(v).replace(/(\/rest\/\d+\/)[^\/\s?#]+/gi, "$1***");
+  }
   var data;
   var app = document.getElementById("app");
   try {
     data = JSON.parse(document.getElementById("puls-data").textContent);
   } catch (e) {
     var err = document.createElement("p");
-    err.textContent = "Ошибка в данных дашборда: " + String(e.message);
+    err.textContent = safe("Ошибка в данных дашборда: " + String(e.message));
     app.appendChild(err);
     return;
   }
@@ -313,7 +322,7 @@
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
-    if (text !== undefined && text !== null) n.textContent = String(text);
+    if (text !== undefined && text !== null) n.textContent = safe(text);
     return n;
   }
   var nf = new Intl.NumberFormat("ru-RU", {maximumFractionDigits: 1});
@@ -327,7 +336,7 @@
   }
 
   var meta = data.meta || {};
-  document.title = "Пульс — " + (meta.company || "");
+  document.title = safe("Пульс — " + (meta.company || ""));
 
   // Header
   var head = el("header");
@@ -388,7 +397,7 @@
       var twoLines = longest * 6.2 > stepGuess - 4;
       var padB = twoLines ? 40 : 28;
       var svg = s("svg", {viewBox: "0 0 " + W + " " + H, width: W, height: H,
-                          role: "img", "aria-label": cfg.title});
+                          role: "img", "aria-label": safe(cfg.title)});
       var vals = pts.filter(num).map(function (p) { return p.value; });
       var max = Math.max(0, Math.max.apply(null, vals));
       var min = Math.min(0, Math.min.apply(null, vals));
@@ -422,7 +431,7 @@
           ps.forEach(function (line, li) {
             var lt = s("text", {x: cx, y: H - padB + 16 + li * 13, "text-anchor": "middle",
                                 "class": "axis"});
-            lt.textContent = line;
+            lt.textContent = safe(line);
             svg.appendChild(lt);
           });
         }
@@ -445,9 +454,9 @@
         }
         var hit = s("rect", {x: padL + step * i, y: padT, width: step, height: ih,
                              fill: "transparent", tabindex: 0});
-        hit.setAttribute("aria-label", tipText);
+        hit.setAttribute("aria-label", safe(tipText));
         function show() {
-          tip.textContent = tipText;
+          tip.textContent = safe(tipText);
           tip.style.left = cx + "px";
           tip.style.top = tipY + "px";
           tip.classList.add("on");
@@ -535,8 +544,8 @@
     rt = setTimeout(function () { drawers.forEach(function (d) { d(); }); }, 150);
   });
   var f = el("footer");
-  f.appendChild(document.createTextNode("Собрано: " + (meta.built_at || "") +
-    " · Источник: " + (meta.source || "") + " · Чтобы обновить цифры, напиши ИИ: "));
+  f.appendChild(document.createTextNode(safe("Собрано: " + (meta.built_at || "") +
+    " · Источник: " + (meta.source || "") + " · Чтобы обновить цифры, напиши ИИ: ")));
   f.appendChild(el("b", null, "«обнови пульс»"));
   app.appendChild(f);
 })();

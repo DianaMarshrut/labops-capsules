@@ -24,9 +24,10 @@ DIST = REPO / "dist"
 REFERENCES: list[tuple[str, str]] = [
     ("references/sources.md", "Приложение 1. Подключение источников данных"),
     ("references/metrics.md", "Приложение 2. Готовые наборы цифр и правила расчёта"),
-    ("references/publish.md", "Приложение 3. Как отдать дашборд"),
+    ("references/publish.md", "Приложение 3. Постоянное место, ссылка и автообновление"),
 ]
 TEMPLATE = "templates/dashboard.html"
+ZIP_DATE = (2026, 1, 1, 0, 0, 0)
 
 
 def build_zip(skill_dir: Path, out: Path) -> Path:
@@ -44,7 +45,13 @@ def build_zip(skill_dir: Path, out: Path) -> Path:
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         for path in sorted(skill_dir.rglob("*")):
             if path.is_file() and not path.name.startswith("."):
-                zf.write(path, f"{root}/{path.relative_to(skill_dir).as_posix()}")
+                # Fixed date and mode: same content gives the same archive and checksum.
+                info = zipfile.ZipInfo(f"{root}/{path.relative_to(skill_dir).as_posix()}",
+                                       date_time=ZIP_DATE)
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o644 << 16
+                info.create_system = 3
+                zf.writestr(info, path.read_bytes())
     with zipfile.ZipFile(out) as zf:
         names = zf.namelist()
     digest = hashlib.sha256(out.read_bytes()).hexdigest()
@@ -74,9 +81,10 @@ def build_chat_instruction(skill_dir: Path, out: Path) -> Path:
     parts = [
         "# Инструкция для чата: капсула «Пульс» от labopsai",
         "",
-        "Вставь весь этот текст первым сообщением в новый чат (ChatGPT, DeepSeek или другой) "
-        "или приложи файлом и напиши: «Работай по этой инструкции». Затем вставь ссылку вебхука "
-        "Битрикс24 или ссылку на таблицу либо загрузи Excel-выгрузку.",
+        "Один раз: в ChatGPT создай проект «Пульс» и добавь этот файл в файлы проекта; "
+        "в DeepSeek вставь этот текст первым сообщением в чат «Пульс» (или приложи файлом "
+        "и напиши: «Работай по этой инструкции»). Дальше пиши в том же проекте или чате "
+        "одну фразу: «обнови пульс».",
         "",
         "Ты работаешь в обычном чате. Источники данных: встроенный коннектор (если он есть "
         "в этом чате), ссылка, которую прислал пользователь (вебхук Битрикс24, Google Таблица), "

@@ -12,7 +12,7 @@
       "name": "puls",
       "source": "./plugins/puls",
       "description": "Пульс — дашборд руководителя: главные цифры компании на одной HTML-странице из CRM, учёта или Excel",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "productivity",
       "keywords": [
         "dashboard",

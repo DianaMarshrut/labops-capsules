@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -85,6 +86,25 @@ def read_deals(path: Path) -> list[Deal]:
             changed=_d(r[head["Дата изменения"]]),
         ))
     return out
+
+
+def read_all_pages(fetch: Callable[[int], dict]) -> list[dict]:
+    """Read every page of a Bitrix24 list answer, as SKILL.md step 4 tells the AI to do.
+
+    Args:
+        fetch: Opens the saved link with the given `start` and returns the JSON answer.
+
+    Returns:
+        All records. Stops only when the answer has no `next`, never by dates.
+    """
+    rows: list[dict] = []
+    start = 0
+    while True:
+        answer = fetch(start)
+        rows += answer["result"]
+        if "next" not in answer:
+            return rows
+        start = answer["next"]
 
 
 def money(v: float) -> str:
@@ -194,15 +214,33 @@ def compute(deals: list[Deal], today: date, data_from: date) -> Dashboard:
     )
 
 
+WEBHOOK_KEY = re.compile(r"/rest/\d+/[^/\s\"?#]+")
+
+
+def check_no_secrets(html: str) -> None:
+    """Raise if a webhook link with a key is anywhere in the finished page (SKILL.md, step 2).
+
+    Args:
+        html: The whole filled dashboard.
+
+    Raises:
+        ValueError: When a ".../rest/<id>/<key>" link is found.
+    """
+    if WEBHOOK_KEY.search(html):
+        raise ValueError("webhook link with a key found in the dashboard")
+
+
 def fill(template: Path, dash: Dashboard, out: Path) -> Path:
-    """Replace the JSON payload inside the template and save."""
+    """Replace the JSON payload inside the template, check it for secrets and save."""
     html = template.read_text(encoding="utf-8")
     a = html.index('<script id="puls-data" type="application/json">')
     a = html.index(">", a) + 1
     b = html.index("</script>", a)
     payload = json.dumps(asdict(dash), ensure_ascii=False, indent=1).replace("<", "\\u003c")
+    page = html[:a] + "\n" + payload + "\n" + html[b:]
+    check_no_secrets(page)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(html[:a] + "\n" + payload + "\n" + html[b:], encoding="utf-8")
+    out.write_text(page, encoding="utf-8")
     logger.info("Saved %s", out)
     return out
 
